@@ -1,4 +1,3 @@
-from sklearn.model_selection import train_test_split
 import collections
 import numpy as np
 
@@ -26,7 +25,7 @@ class dataset(object):
 
     @property
     def labels(self):
-        return self._values
+        return self._labels
 
     @property
     def num_examples(self):
@@ -72,18 +71,3 @@ class dataset(object):
             self._index_in_epoch += batch_size
             end = self._index_in_epoch
             return self._values[start:end], self._labels[start:end]
-
-def read_data_set(data_table,test_size=0.25):
-    '''
-    convert a pandas dataframe data table into Datasets(dataset,dataset)
-    '''
-    train, test = train_test_split(data_table,test_size=0.25)
-    train_x = np.array(train[[col for col in train.columns if col not in ['INFO']]])
-    test_x = np.array(test[[col for col in train.columns if col not in ['INFO']]])
-    # for col in train.columns:
-    #     if col not in ['INFO']:
-    #         train_x[col] = train[col]
-    #         test_x[col] = test[col]
-    train_y = np.array(train['INFO'])
-    test_y = np.array(test['INFO'])
-    return Datasets(train=dataset(train_x,train_y),test=dataset(test_x,test_y))
