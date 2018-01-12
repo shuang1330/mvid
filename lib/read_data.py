@@ -5,7 +5,7 @@ Datasets = collections.namedtuple('Datasets',['train','test'])
 
 class dataset(object):
 
-    def __init__(self,values,labels,seed=None):
+    def __init__(self,values,labels,features,seed=None):
         '''
         input values and labels are numpy arrarys,
         values with shape [num_examples, num_features]
@@ -13,6 +13,8 @@ class dataset(object):
         '''
         assert values.shape[0] == labels.shape[0]
         self._num_examples = values.shape[0]
+        self._num_features = values.shape[1]
+        self._features = features
 
         self._values = values
         self._labels = labels
@@ -32,8 +34,16 @@ class dataset(object):
         return self._num_examples
 
     @property
+    def num_features(self):
+        return self._num_features
+
+    @property
     def epochs_completed(self):
         return self._epochs_completed
+
+    @property
+    def features(self):
+        return self._features
 
     def next_batch(self,batch_size,shuffle=True):
         '''
