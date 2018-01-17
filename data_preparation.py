@@ -14,10 +14,8 @@ from sklearn.preprocessing import MinMaxScaler
 
 if __name__=='__main__':
     # read data file
-    datafolder = 'data/'
-    datafile = 'myo5b_variants_patho_benign_cadd1.3fullannot_v1.xlsx'
-    datatable = pd.ExcelFile(os.path.join(datafolder,datafile))
-    datatable_pd = datatable.parse(datatable.sheet_names[0])
+    datafile = os.path.join('data','mhy7.tsv')
+    datatable_pd = pd.read_csv(datafile,sep='\t')
     datatable_pos = datatable_pd['POS']
 
     # delete some columns that were not used in cadd paper
