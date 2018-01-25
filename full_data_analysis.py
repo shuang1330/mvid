@@ -216,9 +216,9 @@ if __name__ == '__main__':
     # Linear model + SGDregressor
     # Parameters
     n_components = np.arange(10,100,10)
-    loss = ['squared_loss', 'huber',
-            'epsilon_insensitive',
-            'squared_epsilon_insensitive']
+    loss = ['squared_loss']#, 'huber',
+#            'epsilon_insensitive',
+#            'squared_epsilon_insensitive']
     penalty = ['elasticnet']
     l1_ratio = [0.2]
     learning_rate = ['optimal','invscaling']
