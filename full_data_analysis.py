@@ -185,6 +185,8 @@ if __name__ == '__main__':
                                    l1_ratio=0.2,
                                    learning_rate='invscaling',
                                    warm_start=True,
+                                   eta0=0.1,
+                                   tol=1e-06,
                                    class_weight='balanced')
     epoch_num = 10000
     batch_size=100
