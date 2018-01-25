@@ -113,6 +113,12 @@ def display_res_gavin_and_best_model(param_grid,pipeline,mvid,filename=None):
     format(sensitivity,specificity,score,prec=3))
     return classifier
 
+def incremental_training(param_grid,pipeline,data,filename=None):
+    classifier = GridSearchCV(estimator=pipeline,
+                              param_grid=param_grid)
+    print('Start training...')
+    classifier.fit()
+
 def inference(classifier,dataset):
     sensitivity,specificity,score = run_display_output(classifier,dataset.test)
     print('>>> transfer to myo5b gene: sensitivity: {:.{prec}}\tspecificity: {:.{prec}f}\tauc:{}'.\
@@ -144,74 +150,9 @@ if __name__ == '__main__':
     dummy_all_var['INFO'] = all_variants['INFO']
 
     # read data
-#     processed_all = pd.read_csv('data/myh7/myh7_myo5b.csv',sep='\t')
-#     processed_myh7 = processed_all.loc[processed_all['genename']=='MYH7']
-#     processed_myo5b = processed_all.loc[processed_all['genename']=='MYO5B']
-#     processed_myo5b = processed_myo5b.drop('genename',axis=1) # drop pos
-#     processed_myh7 = processed_myh7.drop('genename',axis=1) # drop pos
-
-#     myh7_data = read_data_set(processed_myh7,BENCHMARK=False)
-#     myo5b_data = read_data_set(processed_myo5b,BENCHMARK=False)
     full_data = read_data_set(dummy_all_var,BENCHMARK=False)
     print('Dataset loaded.',full_data.train.values.shape)
 
-# # ================model selection==========================================
-#     # # PCA + LogisticRegression
-#     # # Parameters
-#     n_components = np.arange(10,50,10)
-#     class_weight = ['balanced']#,{1:2,0:1}]
-#     param_grid_logr = [{'pca__n_components':n_components,
-#                    'logr__penalty':['l1'],#'l2'],
-#                    'logr__C':[2],#3,4,5],
-#                    'logr__class_weight':class_weight}]
-#     # pipeline
-#     pipeline_logr = Pipeline(steps=[('pca',PCA()),
-#                                ('logr',LogisticRegression())])
-#     # save model
-#     filename = os.path.join('model')#,'pca_logr_new.sav')
-#     # display results
-#     classifier_logr = display_res_gavin_and_best_model(param_grid_logr,
-#                                      pipeline_logr,
-#                                      myh7_data)#,
-#                                      #filename)
-
-#     inference(classifier_logr,myo5b_data)
-#     # display gavin results
-#     sensitivity_g,specificity_g = read_gavin(test_gavin,myh7_data.test.labels)
-#     print('>>> gavin model results: sensitivity: {:.{prec}}\tspecificity: {:.{prec}f}'.\
-#     format(sensitivity_g,specificity_g,prec=3))
-
-# ==========================================================
-#     # Linear model + SGDregressor
-#     # Parameters
-#     n_components = np.arange(10,50,10)
-#     loss = ['squared_loss', 'huber',
-#             'epsilon_insensitive',
-#             'squared_epsilon_insensitive']
-#     penalty = ['l1','l2','elasticnet']
-#     l1_ratio = [0.15,0.2,0.5,0.8]
-#     learning_rate = ['constant','optimal','invscaling']
-#     param_grid_sgd = [{#'pca__n_components':n_components,
-#                    'sgd__penalty':penalty,
-#                    'sgd__loss':loss,
-#                    'sgd__l1_ratio':l1_ratio,
-#                    'sgd__learning_rate':learning_rate,
-#                    'sgd__tol':[1e-6],
-#                    'sgd__warm_start':[True],
-#                    'sgd__max_iter':[10000],
-#                    'sgd__eta0':[0.1,0.01,0.5],
-#                    'sgd__class_weight':['balanced']}]
-#     # pipeline
-#     pipeline_sgd = Pipeline(steps=[#('pca',PCA()),
-#                                ('sgd',SGDClassifier())])
-#     # save model
-#     filename = os.path.join('model','pca_logr_new.sav')
-#     # display results
-#     classifier_sgd = display_res_gavin_and_best_model(param_grid_sgd,
-#                                      pipeline_sgd,
-#                                      full_data)#,
-#                                      #filename)
-#     inference(classifier_sgd,full_data)
     # ==========================================================
     # Linear model + SGDregressor
     # Parameters
@@ -222,19 +163,42 @@ if __name__ == '__main__':
     penalty = ['elasticnet']
     l1_ratio = [0.2]
     learning_rate = ['optimal','invscaling']
-    param_grid_sgd = [{#'pca__n_components':n_components,
-                   'sgd__penalty':penalty,
-                   'sgd__loss':loss,
-                   'sgd__l1_ratio':l1_ratio,
-                   'sgd__learning_rate':learning_rate,
-                   'sgd__tol':[1e-6],
-                   'sgd__warm_start':[True],
-                   'sgd__max_iter':[10000],
-                   'sgd__eta0':[0.1],#0.01,0.5],
-                   'sgd__class_weight':['balanced']}]
     # pipeline
-    pipeline_sgd = Pipeline(steps=[#('pca',PCA()),
-                               ('sgd',SGDClassifier())])
+    # param_grid_sgd = [{#'pca__n_components':n_components,
+    #                'sgd__penalty':penalty,
+    #                'sgd__loss':loss,
+    #                'sgd__l1_ratio':l1_ratio,
+    #                'sgd__learning_rate':learning_rate,
+    #                'sgd__tol':[1e-6],
+    #                'sgd__warm_start':[True],
+    #                'sgd__max_iter':[10000],
+    #                'sgd__eta0':[0.1],#0.01,0.5],
+    #                'sgd__class_weight':['balanced']}]
+    # # pipeline
+    # pipeline_sgd = Pipeline(steps=[#('pca',PCA()),
+    #                            ('sgd',SGDClassifier())])
+
+    # incremental training
+    all_classes = np.array([0,1])
+    classifier_sgd = SGDClassifier(loss='squared_epsilon_insensitive',
+                                   penalty='elasticnet',
+                                   l1_ratio=0.2,
+                                   learning_rate='invscaling',
+                                   warm_start=True,
+                                   class_weight='balanced')
+    epoch_num = 10000
+    batch_size=100
+    batch_per_ep = ceil(full_data.train.num_examples/epoch_num)
+    for ep in range(epoch_num):
+        for batch_no in range(batch_per_ep):
+            batch_values,batch_labels = \
+            full_data.train.next_batch(batch_size)
+            classifier_sgd.partial_fit(batch_values,
+                                       batch_label,
+                                       classes=all_classes)
+            print(classifier_sgd.score(full_data.test.values,
+                                       full_data.test.labels))
+
     # save model
     filename = os.path.join('model','pca_logr_new.sav')
     # display results
