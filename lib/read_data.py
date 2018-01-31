@@ -3,9 +3,16 @@ import numpy as np
 
 Datasets = collections.namedtuple('Datasets',['train','test'])
 
+def check_null(datatable):
+    print('Here are columns with NaN values:')
+    for col in datatable.columns:
+        null = datatable[col].isnull().values.sum()
+        if null > 0:
+            print(null, col, datatable[col].dtypes)
+
 class dataset(object):
 
-    def __init__(self,values,labels,features,seed=None):
+    def __init__(self,values,labels,seed=None):
         '''
         input values and labels are numpy arrarys,
         values with shape [num_examples, num_features]
@@ -14,7 +21,6 @@ class dataset(object):
         assert values.shape[0] == labels.shape[0]
         self._num_examples = values.shape[0]
         self._num_features = values.shape[1]
-        self._features = features
 
         self._values = values
         self._labels = labels
@@ -40,10 +46,6 @@ class dataset(object):
     @property
     def epochs_completed(self):
         return self._epochs_completed
-
-    @property
-    def features(self):
-        return self._features
 
     def next_batch(self,batch_size,shuffle=True):
         '''
