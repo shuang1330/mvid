@@ -1,5 +1,5 @@
 '''
-two fc layers for autoencoder
+autoencoder
 '''
 
 import pandas as pd
@@ -45,14 +45,14 @@ def read_data_set(data_table,test_size=0.25):
 if __name__=='__main__':
     # constant
     batch_size = 50
-    epoch_num = 50
+    epoch_num = 200
     lr = 0.001
 
     # read dataset
 
     # all_data = pd.read_csv('data/myh7/myh7_myo5b.csv',sep='\t')
-    # all_data = pd.read_csv('/Users/gcc/projects/myo5b_project/data/dummy_no_nan_data.csv',sep='\t')
-    all_data = pd.read_csv('data/myh7/myh7_dummy_no_nan_data.csv',sep='\t')
+    all_data = pd.read_csv('/Users/gcc/projects/myo5b_project/data/dummy_no_nan_data.csv',sep='\t')
+    # all_data = pd.read_csv('data/myh7/myh7_dummy_no_nan_data.csv',sep='\t')
     # print(all_data.shape)
     # print(all_data.head())
     # raise NotImplementedError

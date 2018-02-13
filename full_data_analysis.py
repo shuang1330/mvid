@@ -1,57 +1,47 @@
-# TODO: use compute_class_weight from sklearn
-# now the bender runs the code using the default class_weight
+
 from math import ceil
-from sklearn.utils.class_weight import compute_class_weight
+# from sklearn.utils.class_weight import compute_class_weight
 import pandas as pd
 import os
 import numpy as np
-from sklearn import preprocessing
 from lib.read_data import dataset,Datasets
 
 import pandas as pd
 import numpy as np
 import os
 
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-
-# feature extractors
-from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier
-
-# classifiers
-from sklearn.linear_model import LogisticRegression
-from sklearn.linear_model import ElasticNet
-from sklearn.svm import SVC
-from sklearn.linear_model import SGDClassifier
-
-from sklearn.linear_model import SGDClassifier
-from sklearn.linear_model import PassiveAggressiveClassifier
-from sklearn.linear_model import Perceptron
-from sklearn.naive_bayes import MultinomialNB
+# from sklearn.model_selection import train_test_split
+# from sklearn.pipeline import Pipeline
+#
+# # feature extractors
+# from sklearn.decomposition import PCA
+# from sklearn.ensemble import RandomForestClassifier
+#
+# # classifiers
+# from sklearn.linear_model import LogisticRegression
+# from sklearn.linear_model import ElasticNet
+# from sklearn.svm import SVC
+# from sklearn.linear_model import SGDClassifier
+# from sklearn.linear_model import PassiveAggressiveClassifier
+# from sklearn.linear_model import Perceptron
+# from sklearn.naive_bayes import MultinomialNB
 
 # finetuning
-from sklearn.model_selection import GridSearchCV
+# from sklearn.model_selection import GridSearchCV
 
 # validation
-from sklearn import metrics
-from sklearn.metrics import confusion_matrix
+# from sklearn import metrics
+# from sklearn.metrics import confusion_matrix
 
 import tensorflow.contrib.layers as lays
-from sklearn import preprocessing
 import tensorflow as tf
 from lib.net import autoencoder,feedforward_net
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+# from sklearn.metrics import confusion_matrix
 
 def dense_to_one_hot(labels_dense, num_classes):
   """
   Convert class labels from scalars to one-hot vectors.
   """
-  # num_labels = labels_dense.shape[0]
-  # index_offset = np.arange(num_labels) * num_classes
-  # labels_one_hot = np.zeros((num_labels, num_classes))
-  # labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
   return np.eye(num_classes)[np.array(labels_dense).reshape(-1)]
 
 
@@ -73,7 +63,9 @@ def read_data_set(data_table,test_size=0.25,BENCHMARK=False):
     '''
     convert a pandas dataframe data table into Datasets(dataset,dataset)
     '''
-    train, test = train_test_split(data_table,test_size=0.25)
+    train=data_table.sample(frac=(1-test_size),random_state=200)
+    test=data_table.drop(train.index)
+    # train, test = train_test_split(data_table,test_size=0.25)
     train_x = train[[col for col in train.columns
     if col not in ['INFO','gavin_res']]]
     features = train_x.columns
@@ -188,19 +180,22 @@ if __name__ == '__main__':
     lr = 0.001
     batch_per_ep = ceil(mvid.train.num_examples/batch_size)
 
+    train_fn = mvid.train
+    test_fn = mvid.test
+
 
     # ======================= feedfoward networks ==============================
     # model
-    inputs = tf.placeholder(tf.float32,(None, mvid.train.num_features))
+    inputs = tf.placeholder(tf.float32,(None, train_fn.num_features))
     labels = tf.placeholder(tf.float32,(None, 2))
     # ae_outputs = autoencoder(inputs)
     fn_outputs,fn_probs = feedforward_net(inputs)
     # loss and training options
-    # loss_ae = tf.reduce_mean((tf.square(ae_outputs-inputs))) # autoencoder
-    # loss_fn = tf.reduce_mean((tf.square(fn_outputs-labels)))
     loss_fn = tf.reduce_mean(
                     tf.nn.weighted_cross_entropy_with_logits(
-                    fn_outputs,labels,4))
+                    targets=labels,
+                    logits=fn_outputs,
+                    pos_weight=4))
     train_op = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss_fn)
 
     # initializer
@@ -209,28 +204,29 @@ if __name__ == '__main__':
     # start training
     with tf.Session() as sess:
         sess.run(init)
-        print('Start training...')
         for ep in range(epoch_num):
             for batch_no in range(batch_per_ep):
-                batch_data, batch_label = mvid.train.next_batch(batch_size)
+                batch_data, batch_label = train_fn.next_batch(batch_size)
                 batch_label_onehot = dense_to_one_hot(batch_label,2)
-                _, recon_data,error,probs = sess.run([train_op,
-                                                fn_outputs,
-                                                loss_fn,
-                                                fn_probs],
+                _, recon_data,error = sess.run([train_op,
+                                                ae_outputs,loss_ae],
                                                 feed_dict={inputs:batch_data,
                                                 labels:batch_label_onehot})
                 print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
                 ep, batch_no, error
                 ))
+                print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
+                ep, batch_no, error
+                ))
 
         # test the trained network
-        batch_data, batch_label = mvid.test.values, mvid.test.labels
+        batch_data, batch_label = test_fn.values, test_fn.labels
         # print(batch_data.shape, batch_label.shape)
         batch_label_onehot = dense_to_one_hot(batch_label,2)
-        recon_data,error, probs = sess.run([fn_outputs,loss_fn,fn_probs],
-                              feed_dict={inputs:batch_data,
-                              labels:batch_label_onehot})
+        recon_data,error, probs = sess.run([fn_outputs,
+                                            loss_fn,fn_probs],
+                                            feed_dict={inputs:batch_data,
+                                            labels:batch_label_onehot})
 
         # print(batch_label_onehot[:,0])
         probs = probs[:,0]

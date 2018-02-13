@@ -1,5 +1,5 @@
 '''
-two fc layers for autoencoder
+autoencoder and conv classifiers
 '''
 
 import pandas as pd
@@ -15,48 +15,56 @@ from lib.net import autoencoder,feedforward_net
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GridSearchCV
+
 from sklearn.linear_model import LogisticRegression
 
 def dense_to_one_hot(labels_dense, num_classes):
   """
   Convert class labels from scalars to one-hot vectors.
   """
-  # num_labels = labels_dense.shape[0]
-  # index_offset = np.arange(num_labels) * num_classes
-  # labels_one_hot = np.zeros((num_labels, num_classes))
-  # labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
   return np.eye(num_classes)[np.array(labels_dense).reshape(-1)]
+#
+# def read_data_set(data_table,test_size=0.25):
+#     '''
+#     convert a pandas dataframe data table into Datasets(dataset,dataset)
+#     '''
+#     train, test = train_test_split(data_table,test_size=0.25)
+#     train_x = np.array(train[[col for col in train.columns
+#     if col not in ['INFO','gavin_res']]])
+#     test_x = np.array(test[[col for col in train.columns
+#     if col not in ['INFO','gavin_res']]])
+#     train_y = np.array(train['INFO'],dtype=np.int8)
+#     test_y = np.array(test['INFO'],dtype=np.int8)
+#     return Datasets(train=dataset(train_x,train_y),
+#     test=dataset(test_x,test_y))
 
-def read_data_set(data_table,test_size=0.25):
+def read_data_set(data_table,test_size=0.25,BENCHMARK=False):
     '''
     convert a pandas dataframe data table into Datasets(dataset,dataset)
     '''
     train, test = train_test_split(data_table,test_size=0.25)
-    train_x = np.array(train[[col for col in train.columns
-    if col not in ['INFO']]])
+    train_x = train[[col for col in train.columns
+    if col not in ['INFO','gavin_res']]]
+    train_x = np.array(train_x)
     test_x = np.array(test[[col for col in train.columns
-    if col not in ['INFO']]])
+    if col not in ['INFO','gavin_res']]])
     train_y = np.array(train['INFO'],dtype=np.int8)
     test_y = np.array(test['INFO'],dtype=np.int8)
+
+    if BENCHMARK:
+        return Datasets(train=dataset(train_x,train_y),
+                        test=dataset(test_x,test_y)),\
+                        train['gavin_res'],\
+                        test['gavin_res']
     return Datasets(train=dataset(train_x,train_y),
-    test=dataset(test_x,test_y))
+                    test=dataset(test_x,test_y))
 
 if __name__=='__main__':
-    # constant
-    batch_size = 50
-    epoch_num = 50
-    lr = 0.001
-
     # read dataset
-
-    all_data = pd.read_csv('data/all_variants/myh7_myo5b_dummy_no_nan.csv',sep='\t')
-    # all_data = pd.read_csv('/Users/gcc/projects/myo5b_project/data/dummy_no_nan_data.csv',sep='\t')
-    # all_data = pd.read_csv('data/myh7/mhy7_dummy_no_nan.tsv',sep='\t')
-    # print(all_data.shape)
-    # print(all_data.head())
-    # raise NotImplementedError
-
-
+    all_data = pd.read_csv('data/all_variants/myh7_myo5b_dummy_no_nan.csv',
+                           sep='\t')
     myo5b_with_genename = all_data.loc[all_data['genename']=='MYO5B']
     myh7_with_genename = all_data.loc[all_data['genename']=='MYH7']
 
@@ -64,18 +72,39 @@ if __name__=='__main__':
     myh7_with_genename = myh7_with_genename.drop(['genename'],axis=1)
 
     myh7 = read_data_set(myh7_with_genename)
-    myo5b = read_data_set(myo5b_with_genename,test_size=0)
-    batch_per_ep = ceil(myh7.train.num_examples/batch_size)
+    myo5b = read_data_set(myo5b_with_genename)
+    myh7_full = read_data_set(myh7_with_genename,test_size=0)
+    myo5b_full = read_data_set(myo5b_with_genename,test_size=0)
+
+    train_ae = myh7_full.train
+    test_ae = myh7_full.train
+    train_logr = myh7.train
+    test_logr = myh7.test
+    # train_ae_2 = myo5b.train
+
+
+    # constant
+    batch_size = 50
+    epoch_num = 200
+    lr = 0.001
+    batch_size_2 = 50
+    epoch_num_2 = 50
+    lr_2 = 0.0005
+    batch_per_ep = ceil(train_ae.num_examples/batch_size)
+    # batch_per_ep2 = ceil(train_ae_2.num_examples/batch_size_2)
+
+
 
     # ======================== autoencoder ==============================
     # model
-    inputs = tf.placeholder(tf.float32,(None, myh7.train.num_features))
+    inputs = tf.placeholder(tf.float32,(None, train_ae.num_features))
     labels = tf.placeholder(tf.float32,(None, 2))
     ae_outputs,ae_bottle = autoencoder(inputs)
     # loss and training options
     loss_ae = tf.reduce_mean((tf.square(ae_outputs-inputs))) # autoencoder
     # loss_fn = tf.reduce_mean((tf.square(fn_outputs-labels)))
     train_op = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss_ae)
+    train_op_2 = tf.train.AdamOptimizer(learning_rate=lr_2).minimize(loss_ae)
 
     # initializer
     init = tf.global_variables_initializer()
@@ -85,7 +114,7 @@ if __name__=='__main__':
         sess.run(init)
         for ep in range(epoch_num):
             for batch_no in range(batch_per_ep):
-                batch_data, batch_label = myh7.train.next_batch(batch_size)
+                batch_data, batch_label = train_ae.next_batch(batch_size)
                 batch_label_onehot = dense_to_one_hot(batch_label,2)
                 _, recon_data,error = sess.run([train_op,
                                                 ae_outputs,loss_ae],
@@ -94,96 +123,72 @@ if __name__=='__main__':
                 print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
                 ep, batch_no, error
                 ))
+        # for ep in range(epoch_num_2):
+        #     for batch_no in range(batch_per_ep2):
+        #         batch_data, batch_label = train_ae.next_batch(batch_size)
+        #         batch_label_onehot = dense_to_one_hot(batch_label,2)
+        #         _, recon_data,error = sess.run([train_op_2,
+        #                                         ae_outputs,loss_ae],
+        #                                         feed_dict={inputs:batch_data,
+        #                                         labels:batch_label_onehot})
+        #         print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
+        #         ep, batch_no, error
+        #         ))
 
         # test the trained network
-        batch_data, batch_label = myh7.test.next_batch(batch_size=50)
+        batch_data, batch_label = test_ae.next_batch(batch_size=50)
         batch_label_onehot = dense_to_one_hot(batch_label,2)
-        recon_data, bottle, error = sess.run([ae_outputs,ae_bottle, loss_ae],
-        feed_dict={inputs:batch_data,labels:batch_label_onehot})
+        recon_data, bottle, error = sess.run([ae_outputs,
+                                              ae_bottle,
+                                              loss_ae],
+                                              feed_dict={inputs:batch_data,
+                                              labels:batch_label_onehot})
         print('Test dataset\tError: {0}'.format(error))
 
-        # extract training features from the ae
-        batch_label_onehot = dense_to_one_hot(myh7.train.labels,2)
-        _,train_ae_features,_ = sess.run([ae_outputs,ae_bottle, loss_ae],
-        feed_dict={inputs:myh7.train.values,labels:batch_label_onehot})
-        batch_label_onehot = dense_to_one_hot(myh7.test.labels,2)
-        _,test_ae_features,_ = sess.run([ae_outputs,ae_bottle, loss_ae],
-                                    feed_dict={
-                                    inputs:myh7.test.values,
-                                    labels:batch_label_onehot
-                                    })
-        classifier_logr = LogisticRegression(class_weight='balanced')
-        # print(train_ae_features.shape, myh7.test.labels.shape)
-        classifier_logr.fit(train_ae_features,myh7.train.labels)
-        pred = classifier_logr.predict(test_ae_features)
-        tn, fp, fn, tp = confusion_matrix(myh7.test.labels,pred).ravel()
+        # apply LogisticRegression
+        batch_label_onehot = dense_to_one_hot(train_logr.labels,2)
+        _,train_logr_features,_ = sess.run([ae_outputs,
+                                          ae_bottle,
+                                          loss_ae],
+                                          feed_dict={inputs:train_logr.values,
+                                          labels:batch_label_onehot})
+        batch_label_onehot = dense_to_one_hot(test_logr.labels,2)
+        _,test_logr_features,_ = sess.run([ae_outputs,
+                                         ae_bottle,
+                                         loss_ae],
+                                         feed_dict={inputs:test_logr.values,
+                                         labels:batch_label_onehot})
+
+        # GridSearchCV + Parameters
+        class_weight = ['balanced']
+        param_grid_logr = [{'logr__penalty':['l1','l2'],
+                            'logr__C':[1,2,3,4,5],
+                            'logr__class_weight':class_weight}]
+        # pipeline
+        pipeline_logr = Pipeline(steps=[('logr',LogisticRegression())])
+        # display results
+        classifier_logr = GridSearchCV(estimator=pipeline_logr,
+                                       param_grid=param_grid_logr)
+
+        print('Start training...')
+        classifier_logr.fit(train_logr_features,train_logr.labels)
+        print('Model Description:\n',classifier_logr.best_estimator_)
+        pred = classifier_logr.predict(test_logr_features)
+        tn, fp, fn, tp = confusion_matrix(test_logr.labels,pred).ravel()
         sensitivity = tp/(fn+tp)
         specificity = tn/(fp+tn)
-        print(tn,fp,fn,tp)
-        print(sensitivity,specificity)
+        print('>>> best model results: sensitivity: {:.{prec}}\tspecificity: {:.{prec}f}'.\
+        format(sensitivity,specificity,prec=3))
 
-        # test on myo5b dataset
-        batch_label_onehot = dense_to_one_hot(myo5b.train.labels,2)
-        _,train_ae_features,_ = sess.run([ae_outputs,ae_bottle, loss_ae],
-        feed_dict={inputs:myo5b.train.values,labels:batch_label_onehot})
-        pred = classifier_logr.predict(train_ae_features)
-        tn, fp, fn, tp = confusion_matrix(myo5b.train.labels,pred).ravel()
-        sensitivity = tp/(fn+tp)
-        specificity = tn/(fp+tn)
-        print(tn,fp,fn,tp)
-        print(sensitivity,specificity)
-        # use bottleneck as new features for logistic regression
 
-    #
-    # # ======================= feedfoward networks ==============================
-    # # model
-    # inputs = tf.placeholder(tf.float32,(None, 991))
-    # labels = tf.placeholder(tf.float32,(None, 2))
-    # # ae_outputs = autoencoder(inputs)
-    # fn_outputs,fn_probs = feedforward_net(inputs)
-    # # loss and training options
-    # # loss_ae = tf.reduce_mean((tf.square(ae_outputs-inputs))) # autoencoder
-    # loss_fn = tf.reduce_mean((tf.square(fn_outputs-labels)))
-    # train_op = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss_fn)
-    #
-    # # initializer
-    # init = tf.global_variables_initializer()
-    #
-    # # start training
-    # mvid.train._epochs_completed = 0
-    # with tf.Session() as sess:
-    #     sess.run(init)
-    #     for ep in range(epoch_num):
-    #         mvid.train._epochs_completed += 1
-    #         for batch_no in range(batch_per_ep):
-    #             mvid.train._index_in_epoch = batch_no
-    #             mvid.train._epochs_completed += 1
-    #             batch_data, batch_label = mvid.train.next_batch(batch_size)
-    #             batch_label_onehot = dense_to_one_hot(batch_label,2)
-    #             _, recon_data,error,probs = sess.run([train_op,
-    #                                             fn_outputs,
-    #                                             loss_fn,
-    #                                             fn_probs],
-    #                                             feed_dict={inputs:batch_data,
-    #                                             labels:batch_label_onehot})
-    #             print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
-    #             ep, batch_no, error
-    #             ))
-    #
-    #     # test the trained network
-    #     batch_data, batch_label = mvid.test.values, mvid.test.labels
-    #     # print(batch_data.shape, batch_label.shape)
-    #     batch_label_onehot = dense_to_one_hot(batch_label,2)
-    #     recon_data,error, probs = sess.run([fn_outputs,loss_fn,fn_probs],
-    #                           feed_dict={inputs:batch_data,
-    #                           labels:batch_label_onehot})
-    #
-    #     print(batch_label_onehot[:,0])
-    #     probs = probs[:,0]
-    #     probs[probs>0.5] = 1
-    #     probs[probs<0.5] = 0
-    #     print(probs)
-    #     tn, fp, fn, tp = confusion_matrix(batch_label_onehot[:,0],
-    #                                       probs).ravel()
-    #     print('Test dataset\tError: {0}'.format(error))
-    #     print(tn, fp, fn, tp)
+
+        # # test on myo5b dataset
+        # batch_label_onehot = dense_to_one_hot(myo5b.train.labels,2)
+        # _,train_ae_features,_ = sess.run([ae_outputs,ae_bottle, loss_ae],
+        # feed_dict={inputs:myo5b.train.values,labels:batch_label_onehot})
+        # pred = classifier_logr.predict(train_ae_features)
+        # tn, fp, fn, tp = confusion_matrix(myo5b.train.labels,pred).ravel()
+        # sensitivity = tp/(fn+tp)
+        # specificity = tn/(fp+tn)
+        # print(tn,fp,fn,tp)
+        # print(sensitivity,specificity)

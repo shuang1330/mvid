@@ -37,17 +37,13 @@ def read_data_set(data_table,test_size=0.25,BENCHMARK=False):
     train_y = np.array(train['INFO'],dtype=np.int8)
     test_y = np.array(test['INFO'],dtype=np.int8)
 
-    # # check what columns are in the train Dataset
-    # for i in range(0,len(train_x.columns),5):
-    #     print(train_x.columns[i:i+5])
-
     if BENCHMARK:
-        return Datasets(train=dataset(train_x,train_y,features),
-                        test=dataset(test_x,test_y,features)),\
+        return Datasets(train=dataset(train_x,train_y),
+                        test=dataset(test_x,test_y)),\
                         train['gavin_res'],\
                         test['gavin_res']
-    return Datasets(train=dataset(train_x,train_y,features),
-                    test=dataset(test_x,test_y,features))
+    return Datasets(train=dataset(train_x,train_y),
+                    test=dataset(test_x,test_y))
 
 def draw_roc_curve(fpr,tpr,score):
     '''
@@ -159,31 +155,41 @@ def display_res_gavin_and_elasticnet(param_grid,pipeline,mvid,filename=None):
 if __name__=='__main__':
 
     # read data
-    data = pd.read_csv('data/processed_table_with_gavin_res.csv',sep='\t')
-    mvid,train_gavin, test_gavin = read_data_set(data,BENCHMARK=True)
+    all_data = pd.read_csv('data/all_variants/myh7_myo5b_dummy_no_nan_with_gavin.csv',
+                           sep='\t')
+    myo5b_with_genename = all_data.loc[all_data['genename']=='MYO5B']
+    myh7_with_genename = all_data.loc[all_data['genename']=='MYH7']
+
+    myo5b_with_genename = myo5b_with_genename.drop(['genename'],axis=1)
+    myh7_with_genename = myh7_with_genename.drop(['genename'],axis=1)
+
+    myh7, _, myh7_gavin = read_data_set(myh7_with_genename,BENCHMARK=True)
+    myo5b, myo5b_gavin,_ = read_data_set(myo5b_with_genename,test_size=0,BENCHMARK=True)
+
+    # mvid,train_gavin, test_gavin = read_data_set(data,BENCHMARK=True)
     # print(data.head())
     # raise NotImplementedError # check the dataset loaded
-    print('Dataset loaded.',mvid.train.values.shape)
+    print('Dataset loaded.',myo5b.train.labels.shape)
+    print(myo5b_gavin.shape)
 
 # ================model selection==========================================
-    # # PCA + LogisticRegression
-    # # Parameters
-    n_components = np.arange(2,mvid.train.num_features,10)
-    class_weight = ['balanced',{1:4,0:1},{1:2,0:1}]
-    param_grid_logr = [{'pca__n_components':n_components,
-                   'logr__penalty':['l1'],
-                   'logr__C':[1,2,3,4,5],
-                   'logr__class_weight':class_weight}]
-    # pipeline
-    pipeline_logr = Pipeline(steps=[('pca',PCA()),
-                               ('logr',LogisticRegression())])
-    # save model
-    filename = os.path.join('model','pca_logr_new.sav')
-    # display results
-    classifier_logr = display_res_gavin_and_best_model(param_grid_logr,
-                                     pipeline_logr,
-                                     mvid,
-                                     filename)
+    # # # PCA + LogisticRegression
+    # # # Parameters
+    # n_components = np.arange(2,myo5b.train.num_features,10)
+    # class_weight = ['balanced',{1:4,0:1},{1:2,0:1}]
+    # param_grid_logr = [{'pca__n_components':n_components,
+    #                'logr__penalty':['l1','l2'],
+    #                'logr__C':[1,2,3,4,5],
+    #                'logr__class_weight':class_weight}]
+    # # pipeline
+    # pipeline_logr = Pipeline(steps=[('pca',PCA()),
+    #                            ('logr',LogisticRegression())])
+    # # save model
+    # filename = os.path.join('model','pca_logr.sav')
+    # # display results
+    # classifier_logr = display_res_gavin_and_best_model(param_grid_logr,
+    #                                  pipeline_logr,
+    #                                  myo5b)
 
     # # PCA + ElasticNet
     # pipeline_eln = Pipeline(steps=[('pca',PCA()),
@@ -199,21 +205,20 @@ if __name__=='__main__':
     #                                  pipeline_eln,
     #                                  mvid)
 
-    # PCA + RandomForest
-    pipeline_ranfor = Pipeline(steps=[('pca',PCA()),
-                                      ('ranfor',RandomForestClassifier())])
-    n_estimators = [10,50,100]
-    param_grid_ranfor = [{'pca__n_components':n_components,
-                          'ranfor__n_estimators':n_estimators,
-                          'ranfor__class_weight':class_weight}]
-    filename = os.path.join('model','pca_ranfor.sav')
-    classifier_ranfor = display_res_gavin_and_best_model(param_grid_ranfor,
-                                     pipeline_ranfor,
-                                     mvid,
-                                     filename)
+    # # PCA + RandomForest
+    # pipeline_ranfor = Pipeline(steps=[('pca',PCA()),
+    #                                   ('ranfor',RandomForestClassifier())])
+    # n_estimators = [10,50,100]
+    # param_grid_ranfor = [{'pca__n_components':n_components,
+    #                       'ranfor__n_estimators':n_estimators,
+    #                       'ranfor__class_weight':class_weight}]
+    # filename = os.path.join('model','pca_ranfor.sav')
+    # classifier_ranfor = display_res_gavin_and_best_model(param_grid_ranfor,
+    #                                  pipeline_ranfor,
+    #                                  myo5b)
 
     # display gavin results
-    sensitivity_g,specificity_g = read_gavin(test_gavin,mvid.test.labels)
+    sensitivity_g,specificity_g = read_gavin(myo5b_gavin,myo5b.train.labels)
     print('>>> gavin model results: sensitivity: {:.{prec}}\tspecificity: {:.{prec}f}'.\
     format(sensitivity_g,specificity_g,prec=3))
 # ======================================================================
