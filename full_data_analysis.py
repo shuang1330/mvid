@@ -209,7 +209,7 @@ if __name__ == '__main__':
                 batch_data, batch_label = train_fn.next_batch(batch_size)
                 batch_label_onehot = dense_to_one_hot(batch_label,2)
                 _, recon_data,error = sess.run([train_op,
-                                                ae_outputs,loss_ae],
+                                                fn_outputs,loss_fn],
                                                 feed_dict={inputs:batch_data,
                                                 labels:batch_label_onehot})
                 print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
