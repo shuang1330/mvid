@@ -177,7 +177,7 @@ if __name__ == '__main__':
     # constant
     batch_size = 1000
     epoch_num = 11
-    lr = 0.001
+    lr = 0.01
     batch_per_ep = ceil(mvid.train.num_examples/batch_size)
 
     train_fn = mvid.train
