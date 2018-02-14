@@ -31,7 +31,7 @@ import os
 
 # validation
 # from sklearn import metrics
-# from sklearn.metrics import confusion_matrix
+
 
 import tensorflow.contrib.layers as lays
 import tensorflow as tf
@@ -91,7 +91,7 @@ def run_display_output(classifier,test,DRAW=False):
     pred = classifier.predict(test.values)
     pred[pred>0.5] = 1
     pred[pred<0.5] = 0
-    tn, fp, fn, tp = confusion_matrix(test.labels,pred).ravel()#confusion matrix
+    tn, fp, fn, tp = tf.confusion_matrix(test.labels,pred).ravel()#confusion matrix
     print(tn,fp,fn,tp)
     sensitivity = tp/(fn+tp)
     specificity = tn/(fp+tn)
@@ -145,7 +145,7 @@ def read_gavin(gavin_res, labels):
     gavin_res = gavin_res.replace('Pathogenic',1)
     gavin_res = gavin_res.replace('Benign',0)
     tn_g, fp_g, fn_g, tp_g = \
-    confusion_matrix(labels, gavin_res.astype(np.int8)).ravel()
+    tf.confusion_matrix(labels, gavin_res.astype(np.int8)).ravel()
     sensitivity_g = tp_g/(fn_g+tp_g)
     specificity_g = tn_g/(fp_g+tn_g)
     return sensitivity_g, specificity_g
@@ -196,6 +196,7 @@ if __name__ == '__main__':
                     targets=labels,
                     logits=fn_outputs,
                     pos_weight=4))
+    summary = tf.summary.scalar('loss',loss_fn)
     train_op = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss_fn)
 
     # initializer
@@ -204,14 +205,24 @@ if __name__ == '__main__':
     # start training
     with tf.Session() as sess:
         sess.run(init)
+        train_writer = tf.summary.FileWriter('./summary/train', sess.graph)
+        test_writer = tf.summart.FileWriter('./summary/test')
         for ep in range(epoch_num):
             for batch_no in range(batch_per_ep):
                 batch_data, batch_label = train_fn.next_batch(batch_size)
                 batch_label_onehot = dense_to_one_hot(batch_label,2)
-                _, recon_data,error = sess.run([train_op,
+                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                run_metadata = tf.RunMetadata()
+                _, summary, recon_data,error = sess.run([train_op,
+                                                summary,
                                                 fn_outputs,loss_fn],
                                                 feed_dict={inputs:batch_data,
-                                                labels:batch_label_onehot})
+                                                labels:batch_label_onehot},
+                                                options=run_options,
+                                                run_metadata=run_metadata)
+                tol_iter = batch_op+batch_per_ep*ep
+                train_writer.add_run_metadata(run_metadata,'step%03d'%tol_iter)
+                train_writer.add_summary(summary, tol_iter)
                 print('Epoch: {0}\tIteration:{1}\tError: {2}\t'.format(
                 ep, batch_no, error
                 ))
@@ -223,17 +234,22 @@ if __name__ == '__main__':
         batch_data, batch_label = test_fn.values, test_fn.labels
         # print(batch_data.shape, batch_label.shape)
         batch_label_onehot = dense_to_one_hot(batch_label,2)
-        recon_data,error, probs = sess.run([fn_outputs,
+        summary, recon_data,error, probs = sess.run([summary,
+                                            fn_outputs,
                                             loss_fn,fn_probs],
                                             feed_dict={inputs:batch_data,
                                             labels:batch_label_onehot})
+
+        # test_writer.add_summary(summary, ep)
+        train_writer.close()
+        test_writer.close()
 
         # print(batch_label_onehot[:,0])
         probs = probs[:,0]
         probs[probs>0.5] = 1
         probs[probs<0.5] = 0
         # print(probs)
-        tn, fp, fn, tp = confusion_matrix(batch_label_onehot[:,0],
+        tn, fp, fn, tp = tf.confusion_matrix(batch_label_onehot[:,0],
                                           probs).ravel()
         print('Test dataset\tError: {0}'.format(error))
         print(tn, fp, fn, tp)
